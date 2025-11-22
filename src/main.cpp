@@ -220,6 +220,7 @@ void opcontrol() {
         }
 
         if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_A)) {
+            matchloader_status = !matchloader_status;
             matchloader_solenoid.set_value(matchloader_status);
         }
 
