@@ -1,15 +1,14 @@
 #include "main.h"
 #include "lemlib/api.hpp" // IWYU pragma: keep
 
-bool TESTING_AUTON = false;
-bool IS_SKILLS = false;
-
 // motor groups
 pros::MotorGroup left_motors({20, 19, 18}, pros::MotorGearset::blue);
 pros::MotorGroup right_motors({-13, -12, -11}, pros::MotorGearset::blue);
 
-pros::Motor frontIntake(17);
-pros::Motor backIntake(-15);
+pros::Motor intake(17);
+pros::Motor outtake(-15);
+
+pros::adi::DigitalOut matchloader_solenoid('A');
 
 // drivetrain settings
 lemlib::Drivetrain drivetrain(&left_motors, // left motor group
@@ -23,7 +22,7 @@ lemlib::Drivetrain drivetrain(&left_motors, // left motor group
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
 
 // imu
-pros::Imu imu(16);
+pros::Imu imu(14);
 // horizontal tracking wheel encoder
 //pros::Rotation horizontal_encoder(20);
 // vertical tracking wheel encoder0
@@ -119,32 +118,44 @@ void disabled() {}
  */
 void competition_initialize() {}
 
-void match_autonomous() {
-    chassis.setPose(0, 0, 0);
-    chassis.swingToHeading(-10, DriveSide::LEFT, 500);
-    pros::delay(500);
-    chassis.moveToPoint(0, 11, 1000);
+void blue_left() {
+    chassis.setPose(0, 0, -90);
+    intake.move_voltage(12000);
+    outtake.move_voltage(5000);
+    chassis.moveToPoint(-10, 30, 3000);
     pros::delay(1000);
-    frontIntake.move(127);
-    backIntake.move(32);
-    pros::delay(1500);
-    frontIntake.brake();
-    backIntake.brake();
+    intake.brake();
+    outtake.brake();
 }
 
-void skills_autonomous() {
-    chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(0, 11, 1000);
+void blue_right() {
+    chassis.setPose(0, 0, 90);
+    intake.move_voltage(12000);
+    outtake.move_voltage(5000);
+    chassis.moveToPoint(-10, 30, 3000);
     pros::delay(1000);
-    frontIntake.move(127);
-    backIntake.move(32);
-    pros::delay(1500);
-    frontIntake.brake();
-    backIntake.brake();
+    intake.brake();
+    outtake.brake();
+}
 
-    chassis.turnToHeading(-90, 1000);
-    chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(0, 8, 1000);
+void red_left() {
+    chassis.setPose(0, 0, -90);
+    intake.move_voltage(12000);
+    outtake.move_voltage(5000);
+    chassis.moveToPoint(-10, 30, 3000);
+    pros::delay(1000);
+    intake.brake();
+    outtake.brake();
+}
+
+void red_right() {
+    chassis.setPose(0, 0, 90);
+    intake.move_voltage(12000);
+    outtake.move_voltage(5000);
+    chassis.moveToPoint(-10, 30, 3000);
+    pros::delay(1000);
+    intake.brake();
+    outtake.brake();
 }
 
 /**
@@ -159,12 +170,7 @@ void skills_autonomous() {
  * from where it left off.
  */
 void autonomous() {
-    if (IS_SKILLS) {
-        skills_autonomous();
-    }
-    else {
-        match_autonomous();
-    }
+    chassis.setPose(0, 0, 0);
 }
 
 /**
@@ -181,42 +187,44 @@ void autonomous() {
  * task, not resume it from where it left off.
  */
 void opcontrol() {
-    if (TESTING_AUTON) {
-        autonomous();
-    }
+    bool matchloader_status = false;
 	while (true) {
 		pros::lcd::print(0, "%d %d %d", (pros::lcd::read_buttons() & LCD_BTN_LEFT) >> 2,
 		                 (pros::lcd::read_buttons() & LCD_BTN_CENTER) >> 1,
 		                 (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);  // Prints status of the emulated screen LCDs
 
-		while (true) {
-			// get left y and right x positions
-			int leftY = controller.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y);
-			int rightX = -controller.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X);
 
-			// move the robot
-			chassis.arcade(leftY, rightX);
+		// get left y and right x positions
+		int leftY = controller.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y);
+		int rightX = -controller.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X);
 
-			// intake motors
-            if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1)) {
-				frontIntake.move(127);
-                backIntake.move(127);
-			}
-            else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) {
-                frontIntake.move(-127);
-                backIntake.move(-127);
-            }
-            else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
-                frontIntake.move(127);
-                backIntake.move(32);
-            }
-            else {
-                frontIntake.brake();
-                backIntake.brake();
-            }
+		// move the robot
+		chassis.arcade(leftY, rightX);
 
-			// delay to save resources
-			pros::delay(25);
+		// intake motors
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1)) {
+			intake.move(127);
+            outtake.move(127);
 		}
+        else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) {
+            intake.move(-127);
+            outtake.move(-127);
+        }
+        else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
+            intake.move(127);
+            outtake.move(32);
+        }
+        else {
+            intake.brake();
+            outtake.brake();
+        }
+
+        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_A)) {
+            matchloader_solenoid.set_value(matchloader_status);
+        }
+
+		// delay to save resources
+		pros::delay(25);
+
 	}
 }
